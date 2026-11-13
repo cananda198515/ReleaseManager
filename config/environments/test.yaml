@@ -1,0 +1,12 @@
+# Environment overlay for test (Implementation Guide v2.0 section 9.1). Requirements: NFR-03, NFR-09.
+# Non-secret values only. Keys mirror config/default.yaml; secrets stay {secretRef: NAME} there and are resolved at
+# runtime by the secret provider.
+environment:
+  appEnv: test
+  logLevel: {env: LOG_LEVEL}
+
+releaseApi:
+  baseUrl: {env: API_BASE_URL}
+
+mcp:
+  publicUrl: {env: MCP_PUBLIC_URL}

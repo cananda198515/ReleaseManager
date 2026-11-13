@@ -1,0 +1,43 @@
+# Harness-wide defaults. Source: Implementation Guide v2.0, sections 8.4 and 9.1.
+# Requirements: NFR-03, NFR-09. Values are read from environment variables; secrets are referenced by NAME only
+# and resolved at runtime from the secret provider. Never put secret values in this file.
+
+environment:
+  appEnv: {env: APP_ENV}
+  logLevel: {env: LOG_LEVEL}
+
+releaseApi:
+  baseUrl: {env: API_BASE_URL}
+
+mcp:
+  publicUrl: {env: MCP_PUBLIC_URL}
+
+mysql:
+  host: {env: MYSQL_HOST}
+  port: {env: MYSQL_PORT}
+  database: {env: MYSQL_DATABASE}
+  user: {env: MYSQL_USER}
+  password: {secretRef: MYSQL_PASSWORD}
+
+secrets:
+  provider: {env: SECRET_PROVIDER}   # e.g. azure-key-vault
+
+integrations:
+  outlook:
+    mailbox: {env: OUTLOOK_MAILBOX}
+  jira:
+    baseUrl: {env: JIRA_BASE_URL}
+  confluence:
+    baseUrl: {env: CONFLUENCE_BASE_URL}
+
+retry:   # Section 8.4
+  max_automatic_attempts: 3
+  backoff_seconds: [5, 30, 120]
+  do_not_retry: [401, 403, schema_validation, policy_denied]
+  circuit_breaker:
+    failures: 5
+    window_minutes: 10
+    action: MANUAL_REVIEW_AND_ALERT
+
+products:
+  configDir: config/products

@@ -1,0 +1,53 @@
+# Release state-transition allow-list.
+# Source: Implementation Guide v2.0, sections 4.2 and 8.1. Enforced in code by the Release API, never by prompts.
+# Any (from, to) pair not listed here is denied with HTTP 409 and an audit event.
+# Requirements: NFR-01, NFR-02, AC-RM-04.
+
+initial_state: RECEIVED
+
+terminal_states: [COMPLETED, REJECTED, CANCELLED, FAILED, ROLLED_BACK, ERROR, MANUAL_REVIEW]
+
+transitions:
+  RECEIVED: [PENDING_INFORMATION, INFO_COMPLETE, CANCELLED, ERROR]
+  PENDING_INFORMATION: [INFO_COMPLETE, CANCELLED, MANUAL_REVIEW, ERROR]
+  INFO_COMPLETE: [VALIDATION_PENDING, CANCELLED, ERROR]
+  VALIDATION_PENDING: [OWNER_REVIEW, MANUAL_REVIEW, ERROR]
+  OWNER_REVIEW: [BUSINESS_APPROVAL_PENDING, REJECTED, CANCELLED]
+  BUSINESS_APPROVAL_PENDING: [CHANGE_CREATION_PENDING, REJECTED, CANCELLED]
+  CHANGE_CREATION_PENDING: [CHANGE_APPROVAL_PENDING, ERROR]
+  CHANGE_APPROVAL_PENDING: [SCHEDULED, REJECTED, ERROR]
+  SCHEDULED: [READY_FOR_RELEASE, CANCELLED, ERROR]
+  READY_FOR_RELEASE: [DEPLOYING, CANCELLED, ERROR]
+  DEPLOYING: [VALIDATING, FAILED, ROLLED_BACK, ERROR]
+  VALIDATING: [COMPLETED, FAILED, ROLLED_BACK, ERROR]
+
+# Deterministic gates evaluated when entering the target state (section 8.2).
+gates:
+  INFO_COMPLETE:
+    - Mandatory fields complete
+    - At least one component
+    - Target versions provided
+  OWNER_REVIEW:
+    - Schema valid
+    - Risk calculable
+    - Readiness report produced
+  CHANGE_CREATION_PENDING:
+    - All configured technical/business approvals APPROVED
+  SCHEDULED:
+    - Change approval APPROVED
+    - Valid release window
+    - Attendee config present
+  READY_FOR_RELEASE:
+    - Change still approved
+    - No blocker
+    - Implementation/rollback/validation plans present
+  DEPLOYING:
+    - Explicit production execution authorization from existing deployment mechanism/human policy
+  COMPLETED:
+    - Deployment success evidence valid
+    - Post-deploy validation valid
+    - Required monitoring evidence valid
+
+on_denied:
+  http_status: 409
+  write_audit_event: true

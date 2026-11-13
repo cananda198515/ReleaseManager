@@ -1,0 +1,26 @@
+# Security gates: architecture (layering, forbidden tools, secrets) and prompt-injection tests.
+# Minimal in Slice 1; extended by the security review in Slice 10. These tests are NFR-10 ratchets.
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" -e services/release-api -e services/release-mcp
+      - name: Architecture and prompt-injection tests
+        run: pytest -q tests/architecture tests/prompt-injection

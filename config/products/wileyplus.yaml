@@ -1,0 +1,30 @@
+# Product configuration. Source: Implementation Guide v2.0, section 9.2 (verbatim).
+# Requirements: BR-15, NFR-09, AC-RM-10. Contains no secrets.
+product: WileyPLUS
+releaseIdPrefix: REL
+requiredFields:
+  - releaseName
+  - applicationKey
+  - components
+  - expectedStart
+  - impact
+  - downtimeType
+approvals:
+  technical: true
+  business: true
+  changeManager: true
+risk:
+  mediumThreshold: 6
+  highThreshold: 11
+  criticalThreshold: 16
+reminders:
+  intervalHours: 48
+  maxCount: 3
+evidence:
+  completionRequired:
+    - deployment_result
+    - smoke_test
+    - health_check
+    - monitoring_observation
+features:
+  allowAutonomousProductionDeployment: false

@@ -1,0 +1,43 @@
+# MCP tool allow-list.
+# Source: Implementation Guide v2.0, sections 5.2 and 18.3. Only these tools may be exposed by services/release-mcp.
+# Requirements: NFR-07, AC-RM-04. Any tool not in `allowed` must be rejected; any tool in `forbidden` must never exist.
+
+allowed:
+  - name: release_create_draft
+    params: [input]
+  - name: release_get
+    params: [release_id]
+  - name: release_merge_intake
+    params: [release_id, extracted_fields, source_message_id]
+  - name: release_get_missing_fields
+    params: [release_id]
+  - name: release_calculate_risk
+    params: [release_id]
+  - name: release_get_readiness
+    params: [release_id]
+  - name: release_request_transition
+    params: [release_id, target_state, reason]
+  - name: release_record_approval
+    params: [release_id, approval_type, approver, decision, evidence_ref]
+  - name: release_record_external_artifact
+    params: [release_id, type, external_id, url]
+  - name: release_append_evidence
+    params: [release_id, evidence_type, source, reference, sha256]
+
+forbidden:
+  # Section 5.2 "Do NOT expose"
+  - execute_sql
+  - generic_http
+  - set_status_without_validation
+  - write_secret
+  # Section 18.3 forbidden capability classes
+  - shell
+  - file_write
+  - secret_read
+
+mutation_requirements:  # Section 18.3
+  - Call the Release API only
+  - Require correlation and idempotency headers
+  - Validate input against JSON Schema
+  - Propagate authenticated identity
+  - Map policy-denied to a typed MCP error

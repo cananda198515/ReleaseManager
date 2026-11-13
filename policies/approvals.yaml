@@ -1,0 +1,50 @@
+# Approval policy.
+# Source: Implementation Guide v2.0, sections 2.2, 4.1, 6.1, 8.2, 11 (step 11-12), 12.2 and 14.
+# Requirements: BR-08, BR-09, BR-10, NFR-02; AC-RM-05, AC-RM-06, AC-RM-07.
+# Approvals are human decisions. Agents never create, infer or fabricate approval evidence.
+
+approval_types: [TECHNICAL, BUSINESS, CHANGE, SRE, RELEASE_OWNER]   # release_approval.approval_type
+decisions: [PENDING, APPROVED, REJECTED, UNCLEAR]                  # release_approval.decision
+default_decision: PENDING
+
+# Which approvals are required is product configuration (config/products/<product>.yaml -> approvals).
+product_config_mapping:
+  technical: TECHNICAL
+  business: BUSINESS
+  changeManager: CHANGE
+
+human_only:
+  - TECHNICAL
+  - BUSINESS
+  - CHANGE
+  - production   # production execution authorization (DEPLOYING gate)
+
+evidence_required:          # preserved per approval (BR-08)
+  - approver_email
+  - decision
+  - decision_at
+  - source_message_id
+
+gates:
+  CHANGE_CREATION_PENDING: All configured technical/business approvals APPROVED
+  SCHEDULED: Change approval APPROVED
+  READY_FOR_RELEASE: Change still approved
+
+classification:            # Section 12.2
+  output: {decision: "APPROVED|REJECTED|UNCLEAR", rationale: string, quotedSignal: "string|null"}
+  approved_requires: unambiguous approval statement
+  rejected_requires: unambiguous rejection
+  unclear_when:
+    - question
+    - conditional approval
+    - FYI
+    - silence
+    - emoji-only
+    - ambiguous language
+  never_infer_from:
+    - sender seniority
+    - lack of objection
+
+production_override:       # Section 14
+  requires_named_human_role: true
+  requires_immutable_reason_and_evidence: true
