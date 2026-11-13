@@ -7,19 +7,19 @@ Every slice must keep `pytest -q`, `ruff check .`, `mypy .` green and must not r
 ## Slice 1 — Scaffold
 
 - **Goal:** Monorepo skeleton per section 10 / prompt 18.1: FastAPI `services/release-api`, `services/release-mcp`,
-  SQLAlchemy 2.x, Alembic, MySQL; config/policies/agents/skills/hooks/tests directories; Dockerfiles, docker-compose for
-  local MySQL only, pytest, ruff, mypy and GitHub Actions. No arbitrary SQL tools; no secrets in files.
+  SQLAlchemy 2.x, Alembic, MySQL; config/policies/agents/skills/hooks/tests directories; Dockerfiles, pytest, ruff, mypy
+  and GitHub Actions. No arbitrary SQL tools; no secrets in files. (Prompt 18.1's docker-compose for local MySQL was
+  removed by the slice owner on 13 Nov 2026: local development uses an installed MySQL; see open question #27.)
   Added by the slice owner: Release API settings via pydantic-settings, loaded from environment variables only, with
   `MYSQL_PASSWORD` required (no default) and never logged; liveness endpoint `GET /health` -> 200 `{"status":"ok"}`
   (section 5.1; moved from Slice 5); minimal non-secret environment overlays `config/environments/{dev,test,prod}.yaml`
   (moved from Slice 12); pre-commit hooks for ruff, mypy and gitleaks. No business logic and no database tables.
 - **Files:** `README.md`, `services/release-api/`, `services/release-mcp/`, `db/`, `tests/{unit,integration,policy,prompt-injection,golden,architecture}/`,
   `.github/workflows/validate.yml`, `build.yml`, `security.yml`, `scripts/bootstrap.ps1`, `bootstrap.sh`, `validate.ps1`,
-  Dockerfiles, docker-compose (local MySQL), `.env.example`, `.pre-commit-config.yaml`,
-  `config/environments/{dev,test,prod}.yaml`.
+  `load-env.ps1`, Dockerfiles, `.env.example`, `.pre-commit-config.yaml`, `config/environments/{dev,test,prod}.yaml`.
 - **Tests:** architecture tests (agents/MCP have no MySQL dependency; no forbidden tools present; no secrets; environment
-  overlays non-secret); settings tests (env-only, password required and masked, never logged); smoke test `GET /health`;
-  `ruff`, `mypy`, `pytest` run in CI on every PR.
+  overlays non-secret; `.env.example` never configures root); settings tests (env-only, password required and masked,
+  never logged); smoke test `GET /health`; `ruff`, `mypy`, `pytest` run in CI on every PR.
 - **Traceability:** NFR-03, NFR-06, NFR-09.
 
 ## Slice 2 — Schema
@@ -186,3 +186,20 @@ Every slice must keep `pytest -q`, `ruff check .`, `mypy .` green and must not r
     docker-compose. Is 8.0 acceptable for local work, given that CI and deployed environments should target 8.4? The
     runtime user `release_api@127.0.0.1` has `SELECT, INSERT, UPDATE` only (no `DELETE`, since release and audit records
     are never deleted). Slice 2 must define the migration identity and whether any runtime `DELETE` is needed.
+27. **docker-compose removed (13 Nov 2026, slice owner).** The DB connects to the locally installed MySQL; the compose
+    file and its two architecture tests (`test_compose_is_local_mysql_only`, `test_compose_has_no_inline_credentials`)
+    and its layout check were removed with explicit owner approval, and `test_env_example_never_configures_root` was
+    added. Slice 2's "migrations against disposable DB" in CI (section 11 step 17) will need a CI MySQL service (e.g. a
+    GitHub Actions service container) instead of compose.
+28. **CI MySQL deferred (13 Nov 2026, slice owner).** Slice 2 adds no MySQL service to CI. `tests/integration` skips with
+    an explicit reason when `MYSQL_TEST_DATABASE`/migration credentials are absent, both locally and in CI, so the
+    section 13 database integration tests (migrations up/down, constraints, rollback, concurrent duplicate create,
+    runtime least privilege) are not yet enforced by CI. Which later slice adds the CI MySQL 8.4 service (Slice 12
+    "migrations against disposable DB")?
+29. **Slice 2 owner decisions (13 Nov 2026).** Migration identity `release_migrator` via `MIGRATION_MYSQL_USER` /
+    `MIGRATION_MYSQL_PASSWORD`; runtime `release_api` keeps `SELECT, INSERT, UPDATE` (no `DELETE`), so
+    `ON DELETE CASCADE` and `idempotency_record` retention purge are not exercisable at runtime (see #10). Seed files
+    `db/seed/{dev,test}.yaml` hold only `application_config` rows with `example.com` placeholders; real application
+    key, approvers, Jira project and Confluence space remain undefined (see #16). The migration reproduces section 4.1
+    verbatim plus explicit `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`; `CREATE DATABASE` is a
+    DBA step. Sessions force `time_zone='+00:00'` and strict `sql_mode`.

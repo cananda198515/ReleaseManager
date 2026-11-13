@@ -1,7 +1,9 @@
-"""Alembic environment (Slice 1 skeleton; the section 4.1 schema arrives in Slice 2). NFR-03, NFR-06.
+"""Alembic environment for the section 4.1 schema (Slice 2; NFR-03, NFR-06).
 
-The connection URL is built at runtime from environment variables populated by the approved secret provider; no
-credentials live in this repository. Migrations run under a separate identity from the Release API runtime (Slice 2).
+Migrations run under the dedicated migration identity (MIGRATION_MYSQL_USER / MIGRATION_MYSQL_PASSWORD), never the
+Release API runtime identity, which has no DDL privileges. Values come from environment variables populated by the
+approved secret provider; no credentials live in this repository. Sessions are forced to UTC and strict SQL mode.
+Tests may supply an open connection through ``config.attributes["connection"]``.
 """
 
 from __future__ import annotations
@@ -9,21 +11,28 @@ from __future__ import annotations
 import os
 
 from alembic import context
-from sqlalchemy import URL, MetaData, create_engine, pool
+from sqlalchemy import URL, Connection, pool
 
-target_metadata: MetaData | None = None
+from release_api.db.engine import create_db_engine, mysql_url
+from release_api.db.models import Base
+
+target_metadata = Base.metadata
 
 
 def _database_url() -> URL:
-    return URL.create(
-        drivername="mysql+pymysql",
-        username=os.environ["MYSQL_USER"],
-        password=os.environ["MYSQL_PASSWORD"],
+    return mysql_url(
+        user=os.environ["MIGRATION_MYSQL_USER"],
+        password=os.environ["MIGRATION_MYSQL_PASSWORD"],
         host=os.environ["MYSQL_HOST"],
         port=int(os.environ.get("MYSQL_PORT", "3306")),
         database=os.environ["MYSQL_DATABASE"],
-        query={"charset": "utf8mb4"},
     )
+
+
+def _run(connection: Connection) -> None:
+    context.configure(connection=connection, target_metadata=target_metadata)
+    with context.begin_transaction():
+        context.run_migrations()
 
 
 def run_migrations_offline() -> None:
@@ -37,11 +46,16 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    engine = create_engine(_database_url(), poolclass=pool.NullPool)
-    with engine.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
-        with context.begin_transaction():
-            context.run_migrations()
+    supplied = context.config.attributes.get("connection")
+    if supplied is not None:
+        _run(supplied)
+        return
+    engine = create_db_engine(_database_url(), poolclass=pool.NullPool)
+    try:
+        with engine.connect() as connection:
+            _run(connection)
+    finally:
+        engine.dispose()
 
 
 if context.is_offline_mode():

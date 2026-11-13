@@ -23,7 +23,6 @@ REFERENCE_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 NON_SECRET_KEY = re.compile(r"(?:provider|_ref|ref|_name)$", re.IGNORECASE)
 PLACEHOLDER_PREFIXES = ("<", "${", "$", "{", "[", "|", ">", "#")
 NON_VALUES = frozenset({"", "null", "none", "~", "true", "false", "str", "string"})
-REQUIRED_ENV_REFERENCE = re.compile(r"^\$\{[A-Z][A-Z0-9_]*:\?[^}]*\}$")
 
 
 def _is_safe_value(raw: str) -> bool:
@@ -128,25 +127,22 @@ def test_config_references_secrets_by_name() -> None:
             assert isinstance(value, dict) and set(value) == {"secretRef"}, f"{key_path} must be a secretRef"
 
 
-def test_compose_has_no_inline_credentials() -> None:
-    compose = load_yaml("docker-compose.yml")
-    for name, service in compose["services"].items():
-        env = service.get("environment", {})
-        items: list[tuple[str, str]] = (
-            [(str(k), str(v)) for k, v in env.items()]
-            if isinstance(env, dict)
-            else [(e.partition("=")[0], e.partition("=")[2]) for e in env]
-        )
-        for key, value in items:
-            if SECRET_KEY_NAME.search(str(key)):
-                assert REQUIRED_ENV_REFERENCE.fullmatch(str(value)), (
-                    f"{name}.{key} must be a required ${{VAR:?}} reference, got {value!r}"
-                )
-
-
 def test_env_files_are_gitignored() -> None:
     gitignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert ".env" in gitignore, ".env must be git-ignored so local credentials are never committed"
+
+
+def test_env_example_never_configures_root() -> None:
+    # specs/security.md section 3: root account not used by application.
+    entries = {
+        key.strip(): value.strip()
+        for key, _, value in (
+            line.partition("=") for line in read_text(REPO_ROOT / ".env.example").splitlines()
+        )
+        if key.strip() and not key.strip().startswith("#")
+    }
+    assert "MYSQL_ROOT_PASSWORD" not in entries, ".env.example must not configure root credentials"
+    assert entries.get("MYSQL_USER", "").lower() != "root", "the application must not connect as root"
 
 
 def test_python_sources_scanned() -> None:

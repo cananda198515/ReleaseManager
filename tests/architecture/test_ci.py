@@ -1,4 +1,4 @@
-"""CI runs the gates; docker-compose is local MySQL only (Slice 1; NFR-03, NFR-06)."""
+"""CI runs the gates; pre-commit hooks and read-only workflow tokens (Slice 1; NFR-03, NFR-06)."""
 
 from __future__ import annotations
 
@@ -47,11 +47,3 @@ def test_workflows_use_read_only_token() -> None:
     for name in ("validate", "build", "security"):
         workflow = load_yaml(f".github/workflows/{name}.yml")
         assert workflow.get("permissions") == {"contents": "read"}, f"{name}.yml must declare contents: read"
-
-
-def test_compose_is_local_mysql_only() -> None:
-    compose = load_yaml("docker-compose.yml")
-    assert set(compose["services"]) == {"mysql"}
-    mysql = compose["services"]["mysql"]
-    assert str(mysql["image"]).startswith("mysql:8.4")
-    assert all(str(p).startswith("127.0.0.1:") for p in mysql.get("ports", [])), "bind MySQL to localhost only"

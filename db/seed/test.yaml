@@ -1,0 +1,20 @@
+# Test seed: application configuration only (Slice 2; BR-15, NFR-09). Load with:
+#   python -m release_api.db.seed --file db/seed/test.yaml     (APP_ENV=test)
+# All values are example.com placeholders (specs/slices.md open questions #16 and #29). No secrets.
+appEnv: test
+application_config:
+  - application_key: wileyplus
+    display_name: WileyPLUS
+    product_owner_email: product-owner@example.com
+    business_approver_email: business-approver@example.com
+    change_manager_email: change-manager@example.com
+    sre_dl: sre@example.com
+    dev_team_dl: dev-team@example.com
+    confluence_space_id: EXAMPLE
+    jira_project_key: EXAMPLE
+    jira_issue_type: Change
+    active: true
+  - application_key: example-app
+    display_name: Example App
+    product_owner_email: owner@example.com
+    active: false

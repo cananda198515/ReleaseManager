@@ -31,7 +31,6 @@ REQUIRED_DIRECTORIES = [
 
 REQUIRED_FILES = [
     "README.md",
-    "docker-compose.yml",
     ".env.example",
     ".pre-commit-config.yaml",
     "config/environments/dev.yaml",

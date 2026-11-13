@@ -39,7 +39,7 @@ These boundaries are enforced by tests in `tests/architecture/`. Details: [specs
 
 ## Quick start
 
-Requires Python 3.12+ (and Docker for local MySQL and image builds).
+Requires Python 3.12+ and a locally installed MySQL. Docker is needed only to build the service images (CI does this).
 
 ```powershell
 .\scripts\bootstrap.ps1     # creates .venv and installs tooling + both services (editable)
@@ -63,9 +63,10 @@ Settings are read from environment variables only (pydantic-settings; `.env` fil
 
 ### Local MySQL (development only)
 
-**Option A: MySQL already installed locally (current setup).** The app connects as the least-privilege user
+The database is a locally installed MySQL; there is no docker-compose. The app connects as the least-privilege user
 `release_api@127.0.0.1` (`SELECT, INSERT, UPDATE` on `release_management.*` only, never root). Its credentials live only
-in your git-ignored `.env`. Load them into your session before running the API or Alembic:
+in your git-ignored `.env` (copy `.env.example` and fill it in). Load them into your session before running the API or
+Alembic:
 
 ```powershell
 . .\scripts\load-env.ps1                      # prints variable names only, never values
@@ -75,17 +76,32 @@ alembic -c db/migrations/alembic.ini current
 
 To create the user on a new machine, a DBA or root session runs the following once, then puts the password in `.env`:
 `CREATE USER 'release_api'@'127.0.0.1' IDENTIFIED BY '<choose>'; GRANT SELECT, INSERT, UPDATE ON release_management.* TO 'release_api'@'127.0.0.1';`
-Schema changes (Slice 2) use a separate migration identity, not `release_api`.
 
-**Option B: Docker.**
+### Schema migrations and seed (Slice 2)
 
-```powershell
-Copy-Item .env.example .env   # then replace the placeholders in .env with local-only values
-docker compose up -d mysql
+Alembic migrations (`db/migrations/versions/`) create the section 4.1 schema (InnoDB, utf8mb4, UTC sessions, strict SQL
+mode). They run as a separate migration identity, `release_migrator` (`MIGRATION_MYSQL_USER` /
+`MIGRATION_MYSQL_PASSWORD`). The Release API runtime identity `release_api` cannot change the schema or delete rows. A
+DBA creates the database and both accounts; migrations never create users, grants or databases:
+
+```sql
+CREATE DATABASE release_management CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER 'release_migrator'@'127.0.0.1' IDENTIFIED BY '<choose>';
+GRANT CREATE, ALTER, DROP, INDEX, REFERENCES, SELECT, INSERT, UPDATE, DELETE ON release_management.* TO 'release_migrator'@'127.0.0.1';
 ```
 
-`docker-compose.yml` defines only a local MySQL bound to `127.0.0.1`. Compose refuses to start unless the required
-credentials are set in `.env`.
+```powershell
+. .\scripts\load-env.ps1
+alembic -c db/migrations/alembic.ini upgrade head
+python -m release_api.db.seed --file db/seed/dev.yaml   # APP_ENV=dev or test only; application_config rows only
+```
+
+### Integration tests (local MySQL)
+
+`tests/integration` runs against a disposable database named by `MYSQL_TEST_DATABASE`, which must end in `_test`. The
+tests migrate it up and down and clear its tables. Grant both identities on it the same privileges they have on
+`release_management`. Without these variables the tests skip with an explicit reason. CI has no MySQL service yet
+(open question #28), so these tests are skipped in CI too.
 
 ## Secrets
 
