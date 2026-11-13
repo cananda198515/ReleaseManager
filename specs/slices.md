@@ -199,7 +199,8 @@ Every slice must keep `pytest -q`, `ruff check .`, `mypy .` green and must not r
 29. **Slice 2 owner decisions (13 Nov 2026).** Migration identity `release_migrator` via `MIGRATION_MYSQL_USER` /
     `MIGRATION_MYSQL_PASSWORD`; runtime `release_api` keeps `SELECT, INSERT, UPDATE` (no `DELETE`), so
     `ON DELETE CASCADE` and `idempotency_record` retention purge are not exercisable at runtime (see #10). Seed files
-    `db/seed/{dev,test}.yaml` hold only `application_config` rows with `example.com` placeholders; real application
+    `db/seed/{dev,test}.yaml` hold only `application_config` rows with `example.com` placeholders, and
+    `db/seed/dev_application_config.sql` is a plain-mysql upsert of the same dev row (a test keeps them in sync); real application
     key, approvers, Jira project and Confluence space remain undefined (see #16). The migration reproduces section 4.1
     verbatim plus explicit `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`; `CREATE DATABASE` is a
     DBA step. Sessions force `time_zone='+00:00'` and strict `sql_mode`.

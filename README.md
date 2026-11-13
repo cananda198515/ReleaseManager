@@ -31,7 +31,7 @@ These boundaries are enforced by tests in `tests/architecture/`. Details: [specs
 | `config/` | Externalized harness config, `environments/{dev,test,prod}.yaml` overlays, per-product config (no secrets) |
 | `services/release-api/` | Release API (sole MySQL client) |
 | `services/release-mcp/` | Release MCP server (no database dependencies) |
-| `db/migrations/`, `db/seed/` | Alembic migrations and dev/test seed data |
+| `db/migrations/`, `db/seed/` | Alembic migrations and dev/test seed data (see [db/README.md](db/README.md)) |
 | `agents/`, `skills/`, `hooks/` | Agent instructions, skills and hooks (Slice 7) |
 | `tests/` | `unit/ integration/ policy/ prompt-injection/ golden/ architecture/` |
 | `.github/workflows/` | `validate.yml` (gates), `build.yml` (images), `security.yml` (security gates) |

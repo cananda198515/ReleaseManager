@@ -251,6 +251,44 @@ def test_concurrent_duplicate_create_yields_one_row(db: Engine, model: type[Base
     assert _count(db, model) == 1
 
 
+def test_datetime_columns_have_microsecond_precision(migrated: Engine) -> None:
+    query = text(
+        "SELECT TABLE_NAME, COLUMN_NAME, DATETIME_PRECISION FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = DATABASE() AND DATA_TYPE = 'datetime' AND TABLE_NAME <> 'alembic_version'"
+    )
+    with migrated.connect() as connection:
+        precision = {(row[0], row[1]): row[2] for row in connection.execute(query)}
+    assert len(precision) == 8
+    assert set(precision.values()) == {6}, precision
+
+
+def test_timestamps_are_stored_with_microseconds(db: Engine) -> None:
+    start = datetime(2026, 11, 20, 3, 30, 15, 123456)
+    _add_release(db, expected_start_utc=start)
+    with db.connect() as connection:
+        stored = connection.execute(
+            text("SELECT expected_start_utc, DATE_FORMAT(created_at, '%f') FROM release_request")
+        ).one()
+    assert stored[0] == start
+    assert stored[0].microsecond == 123456
+    assert len(stored[1]) == 6
+
+
+def test_sql_seed_applies_idempotently_as_runtime_identity(db: Engine, runtime_engine: Engine) -> None:
+    statement = "\n".join(
+        line for line in (REPO_ROOT / "db" / "seed" / "dev_application_config.sql").read_text("utf-8").splitlines()
+        if not line.lstrip().startswith("--")
+    ).strip().rstrip(";")
+    for _ in range(2):
+        with runtime_engine.begin() as connection:
+            connection.exec_driver_sql(statement)
+    with Session(db) as session:
+        (row,) = session.scalars(select(ApplicationConfig)).all()
+    assert row.application_key == "wileyplus"
+    assert row.product_owner_email is not None
+    assert row.product_owner_email.endswith("@example.com")
+
+
 def test_seed_is_idempotent(db: Engine) -> None:
     rows = load_seed_rows(REPO_ROOT / "db" / "seed" / "test.yaml", app_env="test")
     for _ in range(2):

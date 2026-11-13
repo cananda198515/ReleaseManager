@@ -68,7 +68,9 @@ def test_database_url_from_settings_uses_runtime_identity() -> None:
 
 
 @pytest.mark.parametrize("missing", ["mysql_host", "mysql_database", "mysql_user"])
-def test_database_url_requires_connection_settings(missing: str) -> None:
+def test_database_url_requires_connection_settings(missing: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Settings also reads the environment, so clear it to make the omitted value genuinely missing.
+    monkeypatch.delenv(missing.upper(), raising=False)
     values: dict[str, str] = {
         "mysql_host": "127.0.0.1",
         "mysql_database": "release_management",

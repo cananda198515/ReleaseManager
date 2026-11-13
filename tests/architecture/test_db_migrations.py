@@ -7,11 +7,12 @@ application configuration.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-from tests._repo import REPO_ROOT, files_under, python_files, read_text, rel, text_files
+from tests._repo import REPO_ROOT, files_under, load_yaml, python_files, read_text, rel, text_files
 
 TABLE_OPTIONS = "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
 CREATE_TABLE = re.compile(r"CREATE TABLE \w+ \(.*?\n\);", re.DOTALL)
@@ -85,6 +86,52 @@ def test_env_example_separates_runtime_and_migration_identities() -> None:
     assert runtime != migrator
     assert "root" not in {runtime.lower(), migrator.lower()}
     assert entries.get("MYSQL_TEST_DATABASE", "").endswith("_test")
+
+
+SQL_SEED = REPO_ROOT / "db" / "seed" / "dev_application_config.sql"
+
+
+def _sql_statements(path: Path) -> list[str]:
+    body = "\n".join(line for line in read_text(path).splitlines() if not line.lstrip().startswith("--"))
+    return [s.strip() for s in body.split(";") if s.strip()]
+
+
+def test_sql_seed_is_single_idempotent_application_config_upsert() -> None:
+    statements = _sql_statements(SQL_SEED)
+    assert len(statements) == 1, "dev seed must be exactly one statement"
+    (statement,) = statements
+    assert statement.upper().startswith("INSERT INTO APPLICATION_CONFIG"), "seed may only insert application_config"
+    assert "ON DUPLICATE KEY UPDATE" in statement.upper(), "seed must be re-runnable"
+    assert statement.count("'wileyplus'") == 1, "dev seed holds exactly one WileyPLUS row"
+    assert not FORBIDDEN_DDL.search(statement)
+    assert not re.search(r"\b(?:DELETE|DROP|ALTER|TRUNCATE|UPDATE\s+\w+\s+SET)\b", statement, re.I)
+
+
+def test_sql_seed_matches_yaml_dev_seed() -> None:
+    (statement,) = _sql_statements(SQL_SEED)
+    match = re.search(r"\((?P<cols>[^)]*)\)\s*VALUES\s*\((?P<vals>[^)]*)\)", statement, re.S)
+    assert match
+    columns = [c.strip() for c in match.group("cols").split(",")]
+    values: list[object] = [
+        v.strip().strip("'") if v.strip().startswith("'") else v.strip().upper() == "TRUE"
+        for v in match.group("vals").split(",")
+    ]
+    (yaml_row,) = load_yaml("db/seed/dev.yaml")["application_config"]
+    assert dict(zip(columns, values, strict=True)) == yaml_row
+
+
+def test_db_readme_documents_two_identities() -> None:
+    readme = read_text(REPO_ROOT / "db" / "README.md")
+    grants = {
+        m.group("user"): {p.strip().upper() for p in m.group("privs").split(",")}
+        for m in re.finditer(
+            r"GRANT\s+(?P<privs>[A-Z ,]+?)\s+ON\s+release_management\.\*\s+TO\s+'(?P<user>\w+)'", readme, re.I
+        )
+    }
+    assert grants.get("release_api") == {"SELECT", "INSERT", "UPDATE"}, grants
+    assert "release_migrator" in grants, "db/README.md must document the migration identity"
+    assert {"CREATE", "ALTER", "DROP"} <= grants["release_migrator"]
+    assert not re.search(r"^GRANT\b.*\bWITH\s+GRANT\s+OPTION", readme, re.I | re.M)
 
 
 def test_seed_files_use_placeholder_addresses_only() -> None:
