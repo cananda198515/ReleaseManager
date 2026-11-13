@@ -63,6 +63,22 @@ Settings are read from environment variables only (pydantic-settings; `.env` fil
 
 ### Local MySQL (development only)
 
+**Option A: MySQL already installed locally (current setup).** The app connects as the least-privilege user
+`release_api@127.0.0.1` (`SELECT, INSERT, UPDATE` on `release_management.*` only, never root). Its credentials live only
+in your git-ignored `.env`. Load them into your session before running the API or Alembic:
+
+```powershell
+. .\scripts\load-env.ps1                      # prints variable names only, never values
+uvicorn release_api.main:create_app --factory  # GET http://127.0.0.1:8000/health
+alembic -c db/migrations/alembic.ini current
+```
+
+To create the user on a new machine, a DBA or root session runs the following once, then puts the password in `.env`:
+`CREATE USER 'release_api'@'127.0.0.1' IDENTIFIED BY '<choose>'; GRANT SELECT, INSERT, UPDATE ON release_management.* TO 'release_api'@'127.0.0.1';`
+Schema changes (Slice 2) use a separate migration identity, not `release_api`.
+
+**Option B: Docker.**
+
 ```powershell
 Copy-Item .env.example .env   # then replace the placeholders in .env with local-only values
 docker compose up -d mysql

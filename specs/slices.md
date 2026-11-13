@@ -182,3 +182,7 @@ Every slice must keep `pytest -q`, `ruff check .`, `mypy .` green and must not r
     settings (fail fast at startup; masked; `hide_input_in_errors`); `/health` and `config/environments/*.yaml` moved
     into Slice 1; environment overlays hold only `appEnv` plus `{env: NAME}` references; gitleaks is the pre-commit
     secret scanner (CI secret scanning still deferred to Slice 10).
+26. **Local MySQL (13 Nov 2026).** Local development uses an installed MySQL **8.0.46**, not 8.4 LTS (section 1.1) or
+    docker-compose. Is 8.0 acceptable for local work, given that CI and deployed environments should target 8.4? The
+    runtime user `release_api@127.0.0.1` has `SELECT, INSERT, UPDATE` only (no `DELETE`, since release and audit records
+    are never deleted). Slice 2 must define the migration identity and whether any runtime `DELETE` is needed.
