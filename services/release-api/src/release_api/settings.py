@@ -7,6 +7,8 @@ repr/str/serialization; validation errors never echo input values.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -26,3 +28,5 @@ class Settings(BaseSettings):
     mysql_database: str | None = None
     mysql_user: str | None = None
     mysql_password: SecretStr
+    # None -> repository policies/state-transitions.yaml (packaging into images deferred to Slice 12; decision D3).
+    state_transitions_policy_path: Path | None = None

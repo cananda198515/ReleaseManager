@@ -45,7 +45,7 @@ def test_alembic_discovers_single_linear_head() -> None:
     # Guards against silent no-op migrations (e.g. version paths split on spaces in the checkout path).
     script = ScriptDirectory.from_config(Config(str(REPO_ROOT / "db" / "migrations" / "alembic.ini")))
     revisions = list(script.walk_revisions())
-    assert script.get_heads() == ["0001"]
+    assert script.get_heads() == ["0002"]  # 0002 status guard approved by the slice owner, 17 Nov 2026 (slices.md #32)
     assert [r.revision for r in revisions][-1] == "0001"
     assert revisions[-1].down_revision is None
 

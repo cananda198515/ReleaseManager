@@ -204,3 +204,45 @@ Every slice must keep `pytest -q`, `ruff check .`, `mypy .` green and must not r
     key, approvers, Jira project and Confluence space remain undefined (see #16). The migration reproduces section 4.1
     verbatim plus explicit `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`; `CREATE DATABASE` is a
     DBA step. Sessions force `time_zone='+00:00'` and strict `sql_mode`.
+30. **Slice 3 owner decisions (14 and 17 Nov 2026).** D1 revised: all section 8.2 gates are implemented in Slice 3
+    (`release_api/domain/gates.py`), moving gate logic forward from Slice 4; Slice 4 keeps risk rules and readiness
+    checks, which supply the gate inputs. The domain lives in `services/release-api/src/release_api/domain/` (not `app/`)
+    and must not import web, DB, HTTP, LLM or MCP packages or other `release_api` layers
+    (`tests/architecture/test_domain_purity.py`). D2: denied and failed transitions are audited as a `release_transition`
+    row with `from_status` = current state, `to_status` = *requested* state and `reason` = `DENIED:<code>[:<checks>]
+    [ | <caller reason>]` (codes `UNKNOWN_STATE`, `TERMINAL_STATE`, `ILLEGAL_TRANSITION`, `GATE_FAILED`, `GATE_ERROR`,
+    `TRANSITION_ERROR`); readers must use the `DENIED:` prefix to tell denials from state changes. D3: the policy path is
+    the optional `STATE_TRANSITIONS_POLICY_PATH` setting (default: repository `policies/state-transitions.yaml`);
+    packaging it into the API image is deferred to Slice 12. Gate inputs: OWNER_REVIEW reads snapshot facts
+    `schema_valid`, `risk_score`/`risk_level` non-null and `readiness_report_produced`; SCHEDULED reads a non-empty
+    `attendees` list and READY_FOR_RELEASE an empty `blockers` list; DEPLOYING requires a `release_evidence` row with
+    `evidence_type='production_authorization'` and `validation_status='VALID'`; for each configured approval type at
+    least one row must exist and every row of that type must be APPROVED (PENDING/UNCLEAR/REJECTED never count);
+    COMPLETED requires a VALID evidence row per `evidence.completionRequired` type. The allow-list has 19 states
+    (19 x 19 matrix), not 20.
+31. **Slice 3 follow-ups (17 Nov 2026).**
+    a. `schema_valid`, `readiness_report_produced`, `blockers` and `attendees` have no database column; the
+       `TransitionService` takes a `GateFacts` provider that defaults to fail-closed values, so OWNER_REVIEW, SCHEDULED
+       and READY_FOR_RELEASE cannot be entered at runtime until Slices 4/5 provide them. Where are they stored?
+    b. The SCHEDULED and READY_FOR_RELEASE gates require a CHANGE approval unconditionally (section 8.2 wording), even
+       if a product sets `approvals.changeManager: false`. Is that intended?
+    c. A `production_authorization` evidence row does not record which human authorized production; who may create or
+       validate it (and how the actor is captured) is undecided (see #15, Slice 5/10).
+    d. Exception routes (CANCELLED, ERROR, MANUAL_REVIEW, FAILED, ROLLED_BACK, REJECTED) have no gates, so a failure can
+       always be routed out (NFR-08).
+    e. The transition service accepts only `REL-YYYYMMDD-NNNN` release IDs (see #11) and any `actor_type` of
+       1..30 characters until roles are defined (see #12).
+32. **Slice 3 security fixes (17 Nov 2026, slice owner).** Only the High review findings were fixed.
+    (1) Cumulative approvals: SCHEDULED, READY_FOR_RELEASE, DEPLOYING and COMPLETED re-check every configured
+    TECHNICAL/BUSINESS approval and CHANGE; COMPLETED re-checks production authorization. (2) An APPROVED row counts only
+    with `decision_at` and `source_message_id` (`APPROVAL_EVIDENCE_MISSING:<type>`). (3) The requester can never approve,
+    and BUSINESS/CHANGE approvers must equal `application_config.business_approver_email` / `change_manager_email` of the
+    active row for the release's `application_key` (`APPROVER_NOT_AUTHORIZED`, `APPROVER_NOT_CONFIGURED` when unset); any
+    TECHNICAL approver other than the requester is accepted. (4) Product configs must state all three approval keys.
+    (5) The policy loader rejects any policy in which DEPLOYING or COMPLETED is reachable without passing
+    CHANGE_CREATION_PENDING, SCHEDULED, READY_FOR_RELEASE (and DEPLOYING for COMPLETED). (6) Migration
+    `0002_release_status_guard` adds triggers that force `RECEIVED` on insert and allow only allow-list status changes for
+    every identity; the existing test `test_alembic_discovers_single_linear_head` now expects head `0002` (owner-approved
+    test change). DBA prerequisites: `TRIGGER` for `release_migrator` and `log_bin_trust_function_creators=1`.
+    Still open: self-approval cannot be detected when `requester_email` is NULL; who may record approvals/evidence and
+    change decisions after the fact (P13) is Slice 5/10; Medium/Low review findings #7-#14 are not addressed.
